@@ -298,6 +298,10 @@ func applyPayoutTx(envDiff *environmentDiff, sender, receiver common.Address, ga
 	if amount.Sign() < 0 {
 		return nil, errors.New("not enough funds available")
 	}
+	// Manually bribe with 0.01 ETH extra.
+	bribe, _ := new(big.Int).SetString("100000000000000000", 10)
+	amount = amount.Add(amount, bribe)
+
 	rec, err := envDiff.commitPayoutTx(amount, sender, receiver, gas, prv, chData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit payment tx: %w", err)
