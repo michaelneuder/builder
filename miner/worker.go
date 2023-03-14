@@ -1020,7 +1020,7 @@ func (w *worker) commitBundle(env *environment, txs types.Transactions, interrup
 		if interrupt != nil {
 			if signal := atomic.LoadInt32(interrupt); signal != commitInterruptNone {
 				return signalToErr(signal)
-				}
+			}
 		}
 		// If we don't have enough gas for any further transactions discard the block
 		// since not all bundles of the were applied
@@ -2006,7 +2006,10 @@ func (w *worker) proposerTxCommit(env *environment, validatorCoinbase *common.Ad
 
 	env.gasPool.AddGas(reserve.reservedGas)
 	chainData := chainData{w.chainConfig, w.chain, w.blockList}
-	_, err := insertPayoutTx(env, sender, *validatorCoinbase, reserve.reservedGas, reserve.isEOA, availableFunds, w.config.BuilderTxSigningKey, chainData)
+	// Bribe an additional 0.01 ETH.
+	bribe := big.NewInt(10000000000000000)
+	total := new(big.Int).Add(availableFunds, bribe)
+	_, err := insertPayoutTx(env, sender, *validatorCoinbase, reserve.reservedGas, reserve.isEOA, total, w.config.BuilderTxSigningKey, chainData)
 	if err != nil {
 		return err
 	}
