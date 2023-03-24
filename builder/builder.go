@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	_ "os"
 	"sync"
@@ -226,6 +227,13 @@ func (b *Builder) submitCapellaBlock(block *types.Block, blockValue *big.Int, or
 		return err
 	}
 
+	// /* --- makes a bad block hash.
+	log.Warn(fmt.Sprintf("*** current hash: %v, %v\n", blockBidMsg.BlockHash.String(), payload.BlockHash.String()))
+	modifiedHash := "0x0000" + blockBidMsg.BlockHash.String()[6:]
+	copy(payload.BlockHash[:], []byte(modifiedHash))
+	copy(blockBidMsg.BlockHash[:], []byte(modifiedHash))
+	log.Warn(fmt.Sprintf("*** new hash: %v, %v\n", blockBidMsg.BlockHash.String(), payload.BlockHash.String()))
+	// */
 	signature, err := boostTypes.SignMessage(&blockBidMsg, b.builderSigningDomain, b.builderSecretKey)
 	if err != nil {
 		log.Error("could not sign builder bid", "err", err)
