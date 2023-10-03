@@ -215,10 +215,6 @@ func (r *RemoteRelay) SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optim
 		return fmt.Errorf("non-ok response code %d from relay %s", code, r.config.Endpoint)
 	}
 
-	// if r.localRelay != nil {
-	// 	r.localRelay.submitBlockCapella(msg)
-	// }
-
 	return nil
 }
 
