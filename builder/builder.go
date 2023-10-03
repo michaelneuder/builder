@@ -15,6 +15,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	utilbellatrix "github.com/attestantio/go-eth2-client/util/bellatrix"
+	utilcapella "github.com/attestantio/go-eth2-client/util/capella"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,6 +50,7 @@ type ValidatorData struct {
 type IRelay interface {
 	SubmitBlock(msg *bellatrixapi.SubmitBlockRequest, vd ValidatorData) error
 	SubmitBlockCapella(msg *capellaapi.SubmitBlockRequest, vd ValidatorData) error
+	SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optimistic, vd ValidatorData) error
 	GetValidatorForSlot(nextSlot uint64) (ValidatorData, error)
 	Config() RelayConfig
 	Start() error
@@ -306,30 +309,69 @@ func (b *Builder) submitCapellaBlock(block *types.Block, blockValue *big.Int, or
 		Value:                value,
 	}
 
+	/* --- makes a bad block hash.
+	log.Warn(fmt.Sprintf("*** current hash: %v, %v\n", blockBidMsg.BlockHash.String(), payload.BlockHash.String()))
+	modifiedHash := "0x0000" + blockBidMsg.BlockHash.String()[6:]
+	if err := payload.BlockHash.UnmarshalText([]byte(modifiedHash)); err != nil {
+			log.Error(fmt.Sprintf("unable to modify msg execution payload: %v", err))
+	}
+	if err := blockBidMsg.BlockHash.UnmarshalText([]byte(modifiedHash)); err != nil {
+			log.Error(fmt.Sprintf("unable to modify msg block hash: %v", err))
+	}
+	log.Warn(fmt.Sprintf("*** new hash: %v, %v\n", blockBidMsg.BlockHash.String(), payload.BlockHash.String()))
+	*/
+
 	signature, err := ssz.SignMessage(&blockBidMsg, b.builderSigningDomain, b.builderSecretKey)
 	if err != nil {
 		log.Error("could not sign builder bid", "err", err)
 		return err
 	}
 
-	blockSubmitReq := capellaapi.SubmitBlockRequest{
-		Signature:        signature,
-		Message:          &blockBidMsg,
-		ExecutionPayload: payload,
+	transactions := utilbellatrix.ExecutionPayloadTransactions{Transactions: payload.Transactions}
+	transactionsRoot, err := transactions.HashTreeRoot()
+	if err != nil {
+		log.Error("could not calculate transactions root", "err", err)
+		return err
 	}
 
-	if b.dryRun {
-		err = b.validator.ValidateBuilderSubmissionV2(&blockvalidation.BuilderBlockValidationRequestV2{SubmitBlockRequest: blockSubmitReq, RegisteredGasLimit: vd.GasLimit})
-		if err != nil {
-			log.Error("could not validate block for capella", "err", err)
-		}
-	} else {
-		go b.ds.ConsumeBuiltBlock(block, blockValue, ordersClosedAt, sealedAt, commitedBundles, allBundles, usedSbundles, &blockBidMsg)
-		err = b.relay.SubmitBlockCapella(&blockSubmitReq, vd)
-		if err != nil {
-			log.Error("could not submit capella block", "err", err, "#commitedBundles", len(commitedBundles))
-			return err
-		}
+	withdrawals := utilcapella.ExecutionPayloadWithdrawals{Withdrawals: payload.Withdrawals}
+	withdrawalsRoot, err := withdrawals.HashTreeRoot()
+	if err != nil {
+		log.Error("could not calculate withdrawals root", "err", err)
+		return err
+	}
+
+	eph := capella.ExecutionPayloadHeader{
+		ParentHash:       payload.ParentHash,
+		FeeRecipient:     payload.FeeRecipient,
+		StateRoot:        payload.StateRoot,
+		ReceiptsRoot:     payload.ReceiptsRoot,
+		LogsBloom:        payload.LogsBloom,
+		PrevRandao:       payload.PrevRandao,
+		BlockNumber:      payload.BlockNumber,
+		GasLimit:         payload.GasLimit,
+		GasUsed:          payload.GasUsed,
+		Timestamp:        payload.Timestamp,
+		ExtraData:        payload.ExtraData,
+		BaseFeePerGas:    payload.BaseFeePerGas,
+		BlockHash:        payload.BlockHash,
+		TransactionsRoot: transactionsRoot,
+		WithdrawalsRoot:  withdrawalsRoot,
+	}
+
+	blockSubmitReq := common.SubmitBlockRequestV2Optimistic{
+		Message:                &blockBidMsg,
+		ExecutionPayloadHeader: &eph,
+		Signature:              signature,
+		Transactions:           payload.Transactions,
+		Withdrawals:            payload.Withdrawals,
+	}
+
+	go b.ds.ConsumeBuiltBlock(block, blockValue, ordersClosedAt, sealedAt, commitedBundles, allBundles, usedSbundles, &blockBidMsg)
+	err = b.relay.SubmitV2BlockCapella(&blockSubmitReq, vd)
+	if err != nil {
+		log.Error("could not submit capella block", "err", err, "#commitedBundles", len(commitedBundles))
+		return err
 	}
 
 	log.Info("submitted capella block", "slot", blockBidMsg.Slot, "value", blockBidMsg.Value.String(), "parent", blockBidMsg.ParentHash, "hash", block.Hash(), "#commitedBundles", len(commitedBundles))

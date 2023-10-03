@@ -22,6 +22,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	bellatrixutil "github.com/attestantio/go-eth2-client/util/bellatrix"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/flashbots/go-boost-utils/bls"
@@ -119,6 +120,10 @@ func (r *LocalRelay) SubmitBlockCapella(msg *capellaapi.SubmitBlockRequest, _ Va
 	log.Info("submitting block to local relay", "block", msg.ExecutionPayload.BlockHash.String())
 
 	return r.submitBlockCapella(msg)
+}
+
+func (r *LocalRelay) SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optimistic, vd ValidatorData) error {
+	return fmt.Errorf("capella v2 not supported on local relay")
 }
 
 func (r *LocalRelay) Config() RelayConfig {
