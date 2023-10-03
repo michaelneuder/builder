@@ -7,6 +7,7 @@ import (
 
 	"github.com/attestantio/go-builder-client/api/bellatrix"
 	"github.com/attestantio/go-builder-client/api/capella"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -72,6 +73,26 @@ func (r *RemoteRelayAggregator) SubmitBlockCapella(msg *capella.SubmitBlockReque
 	for _, relay := range relays {
 		go func(relay IRelay) {
 			err := relay.SubmitBlockCapella(msg, registration)
+			if err != nil {
+				log.Error("could not submit block", "err", err)
+			}
+		}(relay)
+	}
+
+	return nil
+}
+
+func (r *RemoteRelayAggregator) SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optimistic, registration ValidatorData) error {
+	r.registrationsCacheLock.RLock()
+	defer r.registrationsCacheLock.RUnlock()
+
+	relays, found := r.registrationsCache[registration]
+	if !found {
+		return fmt.Errorf("no relays for registration %s", registration.Pubkey)
+	}
+	for _, relay := range relays {
+		go func(relay IRelay) {
+			err := relay.SubmitV2BlockCapella(msg, registration)
 			if err != nil {
 				log.Error("could not submit block", "err", err)
 			}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/attestantio/go-builder-client/api/bellatrix"
 	"github.com/attestantio/go-builder-client/api/capella"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,6 +66,10 @@ func (r *testRelay) SubmitBlockCapella(msg *capella.SubmitBlockRequest, registra
 		}
 	}
 	r.submittedMsgCapella = msg
+	return r.sbError
+}
+
+func (r *testRelay) SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optimistic, vd ValidatorData) error {
 	return r.sbError
 }
 

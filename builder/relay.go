@@ -11,6 +11,7 @@ import (
 
 	"github.com/attestantio/go-builder-client/api/bellatrix"
 	"github.com/attestantio/go-builder-client/api/capella"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/flashbots/go-boost-utils/utils"
 )
@@ -189,6 +190,34 @@ func (r *RemoteRelay) SubmitBlockCapella(msg *capella.SubmitBlockRequest, _ Vali
 	if r.localRelay != nil {
 		r.localRelay.submitBlockCapella(msg)
 	}
+
+	return nil
+}
+
+func (r *RemoteRelay) SubmitV2BlockCapella(msg *common.SubmitBlockRequestV2Optimistic, vd ValidatorData) error {
+	log.Info("submitting block to remote relay", "endpoint", r.config.Endpoint)
+
+	endpoint := r.config.Endpoint + "/relay/v2/builder/blocks"
+	if r.cancellationsEnabled {
+		endpoint = endpoint + "?cancellations=true"
+	}
+
+	bodyBytes, err := msg.MarshalSSZ()
+	if err != nil {
+		return fmt.Errorf("error marshaling ssz: %w", err)
+	}
+	log.Debug("submitting block to remote relay", "endpoint", r.config.Endpoint)
+	code, err := SendSSZRequest(context.TODO(), *http.DefaultClient, http.MethodPost, endpoint, bodyBytes, r.config.GzipEnabled)
+	if err != nil {
+		return fmt.Errorf("error sending http request to relay %s. err: %w", r.config.Endpoint, err)
+	}
+	if code > 299 {
+		return fmt.Errorf("non-ok response code %d from relay %s", code, r.config.Endpoint)
+	}
+
+	// if r.localRelay != nil {
+	// 	r.localRelay.submitBlockCapella(msg)
+	// }
 
 	return nil
 }
